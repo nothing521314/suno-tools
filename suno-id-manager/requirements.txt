@@ -1,0 +1,10 @@
+yt-dlp
+pydub
+gradio
+shazamio
+requests
+playwright
+fastapi
+uvicorn
+pydantic
+python-multipart

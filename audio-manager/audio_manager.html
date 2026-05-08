@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suno Audio Manager - Fast Copy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --accent: #ec4899;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3rem;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .search-bar {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 3rem;
+            display: block;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--card-bg);
+            color: white;
+            outline: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .audio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .id-badge {
+            font-size: 1rem;
+            color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.5rem;
+            width: fit-content;
+        }
+
+        .song-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .badge {
+            padding: 0.3rem 0.7rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .badge-lang {
+            background: rgba(99, 102, 241, 0.2);
+            color: #818cf8;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: auto;
+        }
+
+        .btn {
+            padding: 0.6rem 0.3rem;
+            border-radius: 0.6rem;
+            border: none;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+
+        .btn-title {
+            background: #475569;
+        }
+
+        .btn-lyrics {
+            background: var(--primary);
+        }
+
+        .btn-style {
+            background: var(--secondary);
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #10b981;
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            display: none;
+            z-index: 3000;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Hidden Buffer */
+        #copy-buffer {
+            position: fixed;
+            top: -1000px;
+            left: -1000px;
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Suno Manager</h1>
+            <div class="stats">
+                <span>Total Analyzed: <strong id="count">0</strong></span>
+            </div>
+        </header>
+        <input type="text" class="search-bar" id="search" placeholder="Tìm kiếm bài hát (ID hoặc Tên)...">
+        <div class="audio-grid" id="grid"></div>
+    </div>
+
+    <div id="toast">Đã copy!</div>
+    <textarea id="copy-buffer"></textarea>
+
+    <script>
+        let audioData = [];
+
+        async function init() {
+            try {
+                const response = await fetch('audio_data.json');
+                audioData = await response.json();
+                render();
+            } catch (err) {
+                console.error("Lỗi tải dữ liệu JSON:", err);
+                // Fallback nếu chạy trực tiếp file:// mà không có server
+                alert("Lưu ý: Bạn cần chạy qua một Web Server (như Live Server hoặc python3 -m http.server) để đọc được file JSON.");
+            }
+        }
+
+        function render(filter = "") {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = "";
+            const filtered = audioData.filter(item =>
+                item.id.includes(filter) || item.title.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "card";
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="id-badge">#${item.id}</span>
+                        <span class="badge badge-lang">${item.lang}</span>
+                    </div>
+                    <h2 class="song-title">${item.title}</h2>
+                    <div class="actions">
+                        <button class="btn btn-title" onclick="copyFast('${item.id}', 'title')">🏷️ Title</button>
+                        <button class="btn btn-lyrics" onclick="copyFast('${item.id}', 'lyrics')">📋 Lyrics</button>
+                        <button class="btn btn-style" onclick="copyFast('${item.id}', 'style')">✨ Style</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            document.getElementById('count').innerText = filtered.length;
+        }
+
+        function copyFast(id, type) {
+            const item = audioData.find(d => d.id === id);
+            let text = "";
+
+            if (type === 'title') text = item.title;
+            else if (type === 'lyrics') text = item.lyrics;
+            else if (type === 'style') text = item.style;
+
+            const buffer = document.getElementById('copy-buffer');
+            buffer.value = text;
+            buffer.select();
+
+            try {
+                document.execCommand('copy');
+                showToast(`Đã copy ${type.toUpperCase()}!`);
+            } catch (err) {
+                console.error("Lỗi copy:", err);
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 2000);
+        }
+
+        document.getElementById('search').addEventListener('input', (e) => render(e.target.value));
+
+        init();
+    </script>
+</body>
+
+</html>

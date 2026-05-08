@@ -1,0 +1,7 @@
+.venv
+downloads/
+final_merged/
+suno_ready/
+audio-data.json
+output_audio/
+dist/

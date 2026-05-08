@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music ID Dashboard - Fast Copy</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --accent: #ec4899;
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .search-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 3rem;
+            position: relative;
+        }
+
+        .search-bar {
+            width: 100%;
+            padding: 1rem 1.5rem 1rem 3rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--card-bg);
+            color: white;
+            outline: none;
+            backdrop-filter: blur(10px);
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .search-bar:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            pointer-events: none;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .thumbnail {
+            width: 60px;
+            height: 60px;
+            border-radius: 0.75rem;
+            flex-shrink: 0;
+            background: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .song-info {
+            overflow: hidden;
+            flex-grow: 1;
+        }
+
+        .song-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .song-artist {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .id-badge {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #818cf8;
+            background: rgba(99, 102, 241, 0.1);
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.5rem;
+            width: fit-content;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: auto;
+        }
+
+        .footer-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .btn {
+            padding: 0.6rem;
+            border-radius: 0.75rem;
+            border: none;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+        }
+
+        .btn-copy-title {
+            background: #334155;
+        }
+
+        .btn-copy-artist {
+            background: #475569;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .tiktok-link {
+            color: #818cf8;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .tiktok-link:hover {
+            color: #a5b4fc;
+            text-decoration: underline;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #10b981;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 1rem;
+            display: none;
+            z-index: 3000;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        #emptyState {
+            text-align: center;
+            padding: 4rem;
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        /* Hidden Buffer */
+        #copy-buffer {
+            position: fixed;
+            top: -1000px;
+            left: -1000px;
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Kết quả nhận diện nhạc</h1>
+            <div class="stats">
+                <span>Tổng số bài: <strong id="totalCount">0</strong></span>
+            </div>
+        </header>
+
+        <div class="search-container">
+            <svg class="search-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input type="text" id="searchInput" class="search-bar" placeholder="Tìm tên bài, ca sĩ, ID...">
+        </div>
+
+        <div id="resultsGrid" class="grid"></div>
+
+        <div id="emptyState" class="hidden">
+            Không tìm thấy kết quả nào.
+        </div>
+    </div>
+
+    <div id="toast">Đã copy!</div>
+    <textarea id="copy-buffer"></textarea>
+
+    <script>
+        let musicData = [];
+
+        // Đọc dữ liệu từ file JSON
+        async function loadData() {
+            try {
+                const response = await fetch('results.json?t=' + new Date().getTime());
+                if (!response.ok) throw new Error('Không thể tải results.json');
+                musicData = await response.json();
+                renderCards(musicData);
+            } catch (error) {
+                console.error(error);
+                document.getElementById('resultsGrid').innerHTML =
+                    `<div style="color: #ef4444; text-align: center; grid-column: 1/-1;">Lỗi: Chưa có file results.json hoặc trình duyệt chặn CORS.</div>`;
+            }
+        }
+
+        // Render HTML
+        function renderCards(data) {
+            const grid = document.getElementById('resultsGrid');
+            const emptyState = document.getElementById('emptyState');
+            document.getElementById('totalCount').innerText = data.length;
+
+            if (data.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.innerHTML = data.map((item, index) => `
+                <div class="card">
+                    <div class="card-header">
+                        ${item.image ? `<img src="${item.image}" class="thumbnail" alt="Art">` : `<div class="thumbnail">🎵</div>`}
+                        <div class="song-info">
+                            <h3 class="song-title" title="${item.title}">${item.title}</h3>
+                            <p class="song-artist" title="${item.artist}">${item.artist}</p>
+                            ${item.fake_name ? `<p style="font-size: 0.75rem; color: #6366f1; margin-top: 2px;">🔍 ${item.fake_name}</p>` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-copy-title" onclick="copyText('${item.title.replace(/'/g, "\\'")}', 'Tên bài hát')">
+                            📋 Tên bài
+                        </button>
+                        <button class="btn btn-copy-artist" onclick="copyText('${item.artist.replace(/'/g, "\\'")}', 'Ca sĩ')">
+                            👤 Ca sĩ
+                        </button>
+                    </div>
+
+                    <div class="footer-actions">
+                        <span class="id-badge">ID: ${item.claim_id}</span>
+                        <a href="${item.tiktok_url}" target="_blank" class="tiktok-link">Xem TikTok →</a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Chức năng copy
+        function copyText(text, label) {
+            const buffer = document.getElementById('copy-buffer');
+            buffer.value = text;
+            buffer.select();
+            try {
+                document.execCommand('copy');
+                showToast(`Đã copy ${label}!`);
+            } catch (err) {
+                console.error("Lỗi copy:", err);
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 2000);
+        }
+
+        // Chức năng tìm kiếm
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredData = musicData.filter(item =>
+                item.title.toLowerCase().includes(searchTerm) ||
+                item.artist.toLowerCase().includes(searchTerm) ||
+                (item.fake_name && item.fake_name.toLowerCase().includes(searchTerm)) ||
+                item.claim_id.toString().includes(searchTerm)
+            );
+            renderCards(filteredData);
+        });
+
+        // Khởi chạy
+        loadData();
+    </script>
+</body>
+
+</html>
