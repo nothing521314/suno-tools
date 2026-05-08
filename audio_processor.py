@@ -1,6 +1,7 @@
 import gradio as gr
 from pydub import AudioSegment
 import os
+import json
 
 # Định nghĩa các thư mục
 FOLDER_SUNO_PREP = "suno_ready"
@@ -68,6 +69,7 @@ def update_ui_on_file_upload(bottom_path, top_path):
     """Xử lý Auto-fill và Force Update Slider vào điểm giữa"""
     top_update = gr.update()
     status_msg = "Đang quét file..."
+    custom_name_update = gr.update()
 
     current_top = top_path
     
@@ -79,6 +81,21 @@ def update_ui_on_file_upload(bottom_path, top_path):
                 current_top = potential_path
                 top_update = gr.update(value=current_top)
                 break
+                
+        # Tìm title trong audio_data.json
+        try:
+            json_path = os.path.join("audio-manager", "audio_data.json")
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    audio_data = json.load(f)
+                    for item in audio_data:
+                        if item.get("id") == base_name:
+                            title = item.get("title")
+                            if title:
+                                custom_name_update = gr.update(value=title)
+                            break
+        except Exception:
+            pass
 
     if current_top and bottom_path:
         try:
@@ -109,11 +126,11 @@ def update_ui_on_file_upload(bottom_path, top_path):
             )
             
             status_msg = f"⚙️ Đã khớp file gốc. Vùng an toàn: {min_val}s - {max_val}s. Điểm giữa: {mid_val}s."
-            return top_update, slider_update, status_msg
+            return top_update, slider_update, custom_name_update, status_msg
         except Exception as e:
-            return top_update, gr.Slider(minimum=0, maximum=100, value=0), f"❌ Lỗi: {str(e)}"
+            return top_update, gr.Slider(minimum=0, maximum=100, value=0), custom_name_update, f"❌ Lỗi: {str(e)}"
 
-    return top_update, gr.update(), "Vui lòng kiểm tra file trong folder downloads."
+    return top_update, gr.update(), custom_name_update, "Vui lòng kiểm tra file trong folder downloads."
 
 def merge_audios(audio_top_path, audio_bottom_path, merge_time_sec, crossfade_sec, custom_output_name):
     """Bước 2: Nối file và lưu vào thư mục final_merged"""
@@ -206,7 +223,7 @@ with gr.Blocks(title="Audio Workflow Manager", theme=gr.themes.Soft(), css=custo
         input_bottom.change(
             fn=update_ui_on_file_upload, 
             inputs=[input_bottom, input_top], 
-            outputs=[input_top, merge_slider, msg_merge]
+            outputs=[input_top, merge_slider, custom_name, msg_merge]
         )
         
         btn_merge.click(merge_audios, inputs=[input_top, input_bottom, merge_slider, crossfade_slider, custom_name], outputs=[output_final, msg_merge])
