@@ -1,6 +1,8 @@
 import asyncio
 import os
 import json
+import re
+import yt_dlp
 from playwright.async_api import async_playwright
 from shazamio import Shazam
 
@@ -10,9 +12,22 @@ READY_FOLDER = 'shazam_ready'
 RESULT_FOLDER = 'original_manager'
 RESULT_FILE = os.path.join(RESULT_FOLDER, 'results.json')
 
-async def download_audio_playwright(claim_id):
+def get_tiktok_music_id(url):
+    match = re.search(r'-(\d+)(?:\?.*)?$', url)
+    if match: return match.group(1)
+    match = re.search(r'\/music\/[^\/]+-(\d+)(?:\?.*)?$', url)
+    if match: return match.group(1)
+    return None
+
+async def download_audio_playwright(claim_id_or_url):
     """Giả lập trình duyệt, bắt link nhạc và chống treo trang"""
-    url = f"https://www.tiktok.com/music/-{claim_id}"
+    if claim_id_or_url.startswith("http"):
+        url = claim_id_or_url
+        claim_id = get_tiktok_music_id(url) or "unknown"
+    else:
+        claim_id = claim_id_or_url
+        url = f"https://www.tiktok.com/music/-{claim_id}"
+        
     file_path = os.path.join(READY_FOLDER, f"{claim_id}.mp3")
     
     async with async_playwright() as p:
@@ -81,6 +96,35 @@ async def download_audio_playwright(claim_id):
             
     return None
 
+async def download_audio_ytdlp(url, output_folder):
+    """Tải âm thanh từ các nền tảng video (Tiktok, Facebook) bằng yt-dlp"""
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+            }
+        ],
+        "outtmpl": f"{output_folder}/%(id)s.%(ext)s",
+        "quiet": False,
+    }
+    
+    def run_yt_dlp():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=True)
+                if info:
+                    expected_file = os.path.join(output_folder, f"{info['id']}.mp3")
+                    if os.path.exists(expected_file):
+                        return expected_file, info['id']
+            except Exception as e:
+                print(f"  [!] Lỗi yt-dlp khi tải {url}: {e}")
+        return None, None
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, run_yt_dlp)
+
 async def identify_song(file_path):
     """Sử dụng Shazam để nhận diện file âm thanh"""
     shazam = Shazam()
@@ -139,24 +183,47 @@ async def main():
     print(f"Bắt đầu xử lý {len(queue_data)} ID...\n{'-'*40}")
     
     for item in queue_data:
-        claim_id = item['claim_id']
+        claim_id_or_url = item['claim_id']
         fake_name = item['fake_name']
 
-        if claim_id in existing_ids:
-            print(f"[*] Bỏ qua ID {claim_id} (Đã có kết quả)")
+        is_url = claim_id_or_url.startswith('http://') or claim_id_or_url.startswith('https://')
+
+        if is_url:
+            source_url = claim_id_or_url
+            if "/music/" in source_url:
+                actual_id = get_tiktok_music_id(source_url) or "unknown"
+            else:
+                actual_id = "pending_ytdlp"
+        else:
+            actual_id = claim_id_or_url
+            source_url = f"https://www.tiktok.com/music/-{actual_id}"
+
+        if actual_id != "pending_ytdlp" and actual_id in existing_ids:
+            print(f"[*] Bỏ qua ID {actual_id} (Đã có kết quả)")
             continue
 
-        print(f"[*] Đang xử lý: {fake_name} (ID: {claim_id})")
+        print(f"[*] Đang xử lý: {fake_name} (Link/ID: {claim_id_or_url})")
         
-        file_path = await download_audio_playwright(claim_id)
+        file_path = None
+        if is_url and "/music/" not in source_url:
+            file_path, ytdlp_id = await download_audio_ytdlp(source_url, READY_FOLDER)
+            if ytdlp_id:
+                actual_id = ytdlp_id
+                if actual_id in existing_ids:
+                    print(f"[*] Bỏ qua ID {actual_id} (Đã có kết quả từ trước)")
+                    if file_path and os.path.exists(file_path):
+                        os.remove(file_path)
+                    continue
+        else:
+            file_path = await download_audio_playwright(source_url)
         
         if file_path and os.path.exists(file_path):
             info = await identify_song(file_path)
             
             if info:
-                info['claim_id'] = claim_id
-                info['fake_name'] = fake_name # Lưu thêm trường Tên giả
-                info['tiktok_url'] = f"https://www.tiktok.com/music/-{claim_id}"
+                info['claim_id'] = actual_id
+                info['fake_name'] = fake_name 
+                info['source_url'] = source_url
                 results.append(info)
                 print(f"  -> Nhận diện: {info['title']} - {info['artist']}")
             else:

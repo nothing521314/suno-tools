@@ -107,12 +107,11 @@ export default function Home() {
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-      // Tách lấy cụm số cuối cùng làm ID, phần còn lại là Tên giả
-      const match = trimmed.match(/^(.*)[\s\t]+(\d+)$/);
+      const match = trimmed.match(/^(.*)[\s\t]+(https?:\/\/.+|\d+)$/);
       if (match) {
         items.push({ fake_name: match[1].trim(), claim_id: match[2].trim() });
-      } else if (/^\d+$/.test(trimmed)) {
-        // Nếu chỉ có ID
+      } else {
+        // Nếu chỉ có ID hoặc link
         items.push({ fake_name: "Không có", claim_id: trimmed });
       }
     });
@@ -245,13 +244,13 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">TikTok Claim ID *</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">TikTok ID / Video Link *</label>
                   <input
                     type="text"
                     value={claimId}
                     onChange={(e) => setClaimId(e.target.value)}
                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all placeholder:text-slate-600"
-                    placeholder="7603809163826711310"
+                    placeholder="VD: 760380... hoặc Link Tiktok/Facebook"
                   />
                 </div>
                 <button
@@ -276,7 +275,7 @@ export default function Home() {
                     onChange={(e) => setBulkText(e.target.value)}
                     rows={4}
                     className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all text-xs font-mono placeholder:text-slate-600"
-                    placeholder={"Tên bài 1\t761582329...\nTên bài 2\t761598056..."}
+                    placeholder={"Tên bài 1\t761582329...\nTên bài 2\thttps://www.facebook.com/..."}
                   />
                   <button
                     onClick={addBulkToQueue}

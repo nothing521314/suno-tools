@@ -1,6 +1,8 @@
 import asyncio
 import os
 import json
+import re
+import yt_dlp
 from playwright.async_api import async_playwright
 from shazamio import Shazam
 
@@ -10,9 +12,24 @@ READY_FOLDER = 'shazam_ready'
 RESULT_FOLDER = 'original_manager'
 RESULT_FILE = os.path.join(RESULT_FOLDER, 'results.json')
 
-async def download_audio_playwright(claim_id):
+file_write_lock = asyncio.Lock()
+
+def get_tiktok_music_id(url):
+    match = re.search(r'-(\d+)(?:\?.*)?$', url)
+    if match: return match.group(1)
+    match = re.search(r'\/music\/[^\/]+-(\d+)(?:\?.*)?$', url)
+    if match: return match.group(1)
+    return None
+
+async def download_audio_playwright(claim_id_or_url):
     """Giả lập trình duyệt, bắt link nhạc và chống treo trang"""
-    url = f"https://www.tiktok.com/music/-{claim_id}"
+    if claim_id_or_url.startswith("http"):
+        url = claim_id_or_url
+        claim_id = get_tiktok_music_id(url) or "unknown"
+    else:
+        claim_id = claim_id_or_url
+        url = f"https://www.tiktok.com/music/-{claim_id}"
+        
     file_path = os.path.join(READY_FOLDER, f"{claim_id}.mp3")
     
     async with async_playwright() as p:
@@ -37,28 +54,23 @@ async def download_audio_playwright(claim_id):
         page.on("response", handle_response)
 
         try:
-            print("  -> Đang mở trang và kiểm tra dữ liệu mạng...")
-            # Đã sửa lỗi treo: Đổi thành domcontentloaded và giảm timeout xuống 15 giây
+            print(f"  [{claim_id}] -> Đang mở trang và kiểm tra dữ liệu mạng...")
             await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-            
-            # Cho trang thở 2 giây để các file nhạc chạy ngầm kịp load
             await page.wait_for_timeout(2000)
 
             if not media_url:
                 play_btn = page.locator('[data-e2e="music-play-icon"]').first
                 if await play_btn.is_visible():
-                    print(f"  -> Chưa có preload, tiến hành click nút Play...")
+                    print(f"  [{claim_id}] -> Chưa có preload, tiến hành click nút Play...")
                     await play_btn.click()
                     await page.wait_for_timeout(4000) 
                 else:
-                    print(f"  [!] Lỗi: Không tìm thấy nút Play. Có thể link hỏng.")
+                    print(f"  [{claim_id}] [!] Lỗi: Không tìm thấy nút Play. Có thể link hỏng.")
         except Exception as e:
-            # Dù bị lỗi timeout trang, ta vẫn cứ chạy tiếp nếu đã bắt được media_url
-            print(f"  [*] Cảnh báo tải trang: Quá thời gian chờ (Timeout), nhưng vẫn tiếp tục xử lý...")
+            print(f"  [{claim_id}] [*] Cảnh báo tải trang: Quá thời gian chờ, nhưng vẫn tiếp tục xử lý...")
         
-        # Tiến hành lưu file
         if media_url:
-            print(f"  -> Đã bắt được Audio, đang lưu file...")
+            print(f"  [{claim_id}] -> Đã bắt được Audio, đang lưu file...")
             try:
                 res = await context.request.get(
                     media_url, 
@@ -71,15 +83,45 @@ async def download_audio_playwright(claim_id):
                     await browser.close()
                     return file_path
                 else:
-                    print(f"  [!] Tải file thất bại (Mã lỗi {res.status})")
+                    print(f"  [{claim_id}] [!] Tải file thất bại (Mã lỗi {res.status})")
             except Exception as e:
-                print(f"  [!] Lỗi quá trình ghi file: {e}")
+                print(f"  [{claim_id}] [!] Lỗi quá trình ghi file: {e}")
         else:
-            print("  [!] Lỗi: Không bắt được link âm thanh nào (Có thể bài hát đã bị xóa bản quyền).")
+            print(f"  [{claim_id}] [!] Lỗi: Không bắt được link âm thanh nào.")
             
         await browser.close()
             
     return None
+
+async def download_audio_ytdlp(url, output_folder):
+    """Tải âm thanh từ các nền tảng video (Tiktok, Facebook) bằng yt-dlp"""
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+            }
+        ],
+        "outtmpl": f"{output_folder}/%(id)s.%(ext)s",
+        "quiet": True,
+        "noprogress": True,
+    }
+    
+    def run_yt_dlp():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=True)
+                if info:
+                    expected_file = os.path.join(output_folder, f"{info['id']}.mp3")
+                    if os.path.exists(expected_file):
+                        return expected_file, info['id']
+            except Exception as e:
+                print(f"  [!] Lỗi yt-dlp khi tải {url}: {e}")
+        return None, None
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, run_yt_dlp)
 
 async def identify_song(file_path):
     """Sử dụng Shazam để nhận diện file âm thanh"""
@@ -98,6 +140,87 @@ async def identify_song(file_path):
         print(f"  [!] Lỗi Shazam: {e}")
     return None
 
+async def process_item(item, existing_ids, semaphore):
+    claim_id_or_url = item['claim_id']
+    fake_name = item['fake_name']
+    original_line = item['original_line']
+
+    is_url = claim_id_or_url.startswith('http://') or claim_id_or_url.startswith('https://')
+
+    if is_url:
+        source_url = claim_id_or_url
+        if "/music/" in source_url:
+            actual_id = get_tiktok_music_id(source_url) or "unknown"
+        else:
+            actual_id = "pending_ytdlp"
+    else:
+        actual_id = claim_id_or_url
+        source_url = f"https://www.tiktok.com/music/-{actual_id}"
+
+    if actual_id != "pending_ytdlp" and actual_id in existing_ids:
+        print(f"[*] Bỏ qua ID {actual_id} (Đã có kết quả)")
+        return
+
+    async with semaphore:
+        print(f"[*] Đang xử lý: {fake_name} (Link/ID: {claim_id_or_url})")
+        
+        file_path = None
+        if is_url and "/music/" not in source_url:
+            file_path, ytdlp_id = await download_audio_ytdlp(source_url, READY_FOLDER)
+            if ytdlp_id:
+                actual_id = ytdlp_id
+                if actual_id in existing_ids:
+                    print(f"[*] Bỏ qua ID {actual_id} (Đã có kết quả từ trước)")
+                    if file_path and os.path.exists(file_path):
+                        os.remove(file_path)
+                    return
+        else:
+            file_path = await download_audio_playwright(source_url)
+        
+        if file_path and os.path.exists(file_path):
+            info = await identify_song(file_path)
+            
+            if info:
+                info['claim_id'] = actual_id
+                info['fake_name'] = fake_name 
+                info['source_url'] = source_url
+                
+                print(f"  -> Nhận diện thành công: {info['title']} - {info['artist']}")
+                
+                async with file_write_lock:
+                    results = []
+                    if os.path.exists(RESULT_FILE):
+                        try:
+                            with open(RESULT_FILE, 'r', encoding='utf-8') as f:
+                                results = json.load(f)
+                        except json.JSONDecodeError:
+                            pass
+                    results.append(info)
+                    with open(RESULT_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(results, f, ensure_ascii=False, indent=4)
+                        
+            else:
+                print(f"  -> Thất bại: Shazam không nhận diện được (ID: {actual_id}).")
+            
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
+        
+        # Cập nhật: xóa item đã xử lý khỏi file queue.txt
+        async with file_write_lock:
+            if os.path.exists(QUEUE_FILE):
+                with open(QUEUE_FILE, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                with open(QUEUE_FILE, 'w', encoding='utf-8') as f:
+                    removed = False
+                    for line in lines:
+                        if not removed and line.strip() == original_line:
+                            removed = True
+                            continue
+                        f.write(line)
+
 async def main():
     os.makedirs(READY_FOLDER, exist_ok=True)
     os.makedirs(RESULT_FOLDER, exist_ok=True) 
@@ -107,20 +230,17 @@ async def main():
         print(f"Đã tạo file {QUEUE_FILE}.")
         return
 
-    # --- ĐÃ NÂNG CẤP: Đọc và tách Tên giả + ID ---
     queue_data = []
     with open(QUEUE_FILE, 'r', encoding='utf-8') as f:
         for line in f:
-            line = line.strip()
-            if not line:
+            stripped_line = line.strip()
+            if not stripped_line:
                 continue
-            # Cắt dòng từ phải sang trái (lấy cụm cuối cùng làm ID)
-            parts = line.rsplit(maxsplit=1)
+            parts = stripped_line.rsplit(maxsplit=1)
             if len(parts) == 2:
-                queue_data.append({"fake_name": parts[0], "claim_id": parts[1]})
+                queue_data.append({"fake_name": parts[0], "claim_id": parts[1], "original_line": stripped_line})
             elif len(parts) == 1:
-                # Nếu dòng chỉ có ID (không có tên giả)
-                queue_data.append({"fake_name": "Không có", "claim_id": parts[0]})
+                queue_data.append({"fake_name": "Không có", "claim_id": parts[0], "original_line": stripped_line})
 
     if not queue_data:
         print(f"File {QUEUE_FILE} đang trống.")
@@ -136,53 +256,12 @@ async def main():
             
     existing_ids = {item['claim_id'] for item in results}
 
-    print(f"Bắt đầu xử lý {len(queue_data)} ID...\n{'-'*40}")
+    print(f"Bắt đầu xử lý đồng thời {len(queue_data)} mục...\n{'-'*40}")
     
-    for i, item in enumerate(queue_data):
-        claim_id = item['claim_id']
-        fake_name = item['fake_name']
-
-        if claim_id in existing_ids:
-            print(f"[*] Bỏ qua ID {claim_id} (Đã có kết quả)")
-        else:
-            print(f"[*] Đang xử lý: {fake_name} (ID: {claim_id})")
-            
-            file_path = await download_audio_playwright(claim_id)
-            
-            if file_path and os.path.exists(file_path):
-                info = await identify_song(file_path)
-                
-                if info:
-                    info['claim_id'] = claim_id
-                    info['fake_name'] = fake_name # Lưu thêm trường Tên giả
-                    info['tiktok_url'] = f"https://www.tiktok.com/music/-{claim_id}"
-                    results.append(info)
-                    print(f"  -> Nhận diện: {info['title']} - {info['artist']}")
-                else:
-                    print("  -> Thất bại: Shazam không nhận diện được.")
-                
-                try:
-                    os.remove(file_path)
-                except Exception:
-                    pass
-            
-            # Lưu kết quả nhận diện
-            with open(RESULT_FILE, 'w', encoding='utf-8') as f:
-                json.dump(results, f, ensure_ascii=False, indent=4)
-
-        # CẬP NHẬT: Xóa item đã xử lý khỏi file queue.txt một cách an toàn
-        if os.path.exists(QUEUE_FILE):
-            with open(QUEUE_FILE, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            
-            with open(QUEUE_FILE, 'w', encoding='utf-8') as f:
-                removed = False
-                for line in lines:
-                    # Nếu dòng chứa ID vừa quét và chưa bị xóa trong vòng lặp này
-                    if claim_id in line and not removed:
-                        removed = True
-                        continue
-                    f.write(line)
+    semaphore = asyncio.Semaphore(3)
+    tasks = [process_item(item, existing_ids, semaphore) for item in queue_data]
+    
+    await asyncio.gather(*tasks)
 
     print(f"\n{'-'*40}\nHoàn thành! Kết quả cập nhật vào {RESULT_FILE}")
 

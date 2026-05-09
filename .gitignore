@@ -5,3 +5,4 @@ suno_ready/
 audio-data.json
 output_audio/
 dist/
+.DS_Store
