@@ -80,14 +80,25 @@ async def run_processor():
     try:
         # Run shazam_processor.py
         process = await asyncio.create_subprocess_exec(
-            "python3", "shazam_processor.py",
+            "python3", "-u", "shazam_processor.py",
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.STDOUT
         )
-        stdout, stderr = await process.communicate()
-        status.last_output = stdout.decode() + "\n" + stderr.decode()
+        status.last_output = ""
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            decoded_line = line.decode(errors='replace')
+            status.last_output += decoded_line
+            # Giữ log ngắn gọn (ví dụ 5000 ký tự cuối)
+            if len(status.last_output) > 5000:
+                status.last_output = status.last_output[-5000:]
+            print(decoded_line, end="", flush=True)
+        await process.wait()
     except Exception as e:
-        status.last_output = str(e)
+        status.last_output += f"\nError: {str(e)}"
+        print(f"Error running processor: {e}", flush=True)
     finally:
         status.is_running = False
 

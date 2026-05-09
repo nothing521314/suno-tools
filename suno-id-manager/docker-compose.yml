@@ -2,7 +2,7 @@ services:
   suno-tool:
     build: .
     ports:
-      - "3000:3000"
+      - "3030:3000"
     volumes:
       - ./original_manager:/app/original_manager
       - ./queue.txt:/app/queue.txt

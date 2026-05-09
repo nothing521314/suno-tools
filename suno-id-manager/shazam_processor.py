@@ -33,7 +33,10 @@ async def download_audio_playwright(claim_id_or_url):
     file_path = os.path.join(READY_FOLDER, f"{claim_id}.mp3")
     
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox']
+        )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
         )
@@ -258,7 +261,7 @@ async def main():
 
     print(f"Bắt đầu xử lý đồng thời {len(queue_data)} mục...\n{'-'*40}")
     
-    semaphore = asyncio.Semaphore(3)
+    semaphore = asyncio.Semaphore(1)
     tasks = [process_item(item, existing_ids, semaphore) for item in queue_data]
     
     await asyncio.gather(*tasks)
