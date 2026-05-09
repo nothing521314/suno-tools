@@ -1,11 +1,12 @@
+﻿
 @echo off
 chcp 65001 >nul
-title Audio Workflow Manager — Cài Đặt Lần Đầu
+title Audio Workflow Manager - Cai Dat Lan Dau
 color 0A
 
 echo.
 echo  ============================================================
-echo   🎵  AUDIO WORKFLOW MANAGER — CÀI ĐẶT LẦN ĐẦU
+echo   🎵  AUDIO WORKFLOW MANAGER - CÀI ĐẶT LẦN ĐẦU
 echo  ============================================================
 echo.
 echo  Script này sẽ tự động cài đặt mọi thứ cần thiết.
@@ -46,7 +47,7 @@ if %errorlevel% neq 0 (
         echo.
         echo  ❌ Không thể cài uv tự động.
         echo  Hãy chạy lại file này với quyền Administrator:
-        echo  Chuột phải vào setup.bat → "Run as administrator"
+        echo  Chuột phải vào setup.bat -^> "Run as administrator"
         pause
         exit /b 1
     )
@@ -95,7 +96,8 @@ echo.
 echo  [4/4] Đang cài thư viện Python (gradio, pydub, yt-dlp)...
 echo  Lần đầu có thể mất vài phút, vui lòng chờ...
 echo.
-uv sync 2>nul || uv pip install -r requirements.txt --system
+uv venv
+uv pip install -r requirements.txt
 if %errorlevel% neq 0 (
     uv run python -c "import gradio, pydub" >nul 2>&1
     if %errorlevel% neq 0 (

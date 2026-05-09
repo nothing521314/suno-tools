@@ -39,20 +39,40 @@ custom_css = """
 }
 """
 
-def prepare_suno_file(audio_path, extract_sec):
+def prepare_suno_file(audio_path, extract_sec, trim_end_sec):
     """Bước 1: Cắt audio và lưu vào thư mục suno_ready"""
     if not audio_path:
         return None, "Vui lòng tải lên file audio gốc."
     try:
+        audio = AudioSegment.from_file(audio_path)
+        duration_sec = len(audio) / 1000.0
+        
+        status_trim = ""
+        # Nếu trim_end_sec nhỏ hơn độ dài hiện tại (có sai số nhỏ), tiến hành cắt
+        if 0 < trim_end_sec < (duration_sec - 0.1):
+            trim_end_ms = int(trim_end_sec * 1000)
+            audio = audio[:trim_end_ms]
+            
+            # Lưu đè file temp của Gradio
+            audio.export(audio_path, format="wav")
+            
+            # Kiểm tra và đè file trong thư mục downloads nếu có trùng tên
+            original_filename = os.path.basename(audio_path)
+            potential_path = os.path.join(FOLDER_DOWNLOADS, original_filename)
+            if os.path.exists(potential_path):
+                audio.export(potential_path, format="wav")
+                status_trim = " (Đã đè file gốc tại downloads)"
+            else:
+                status_trim = " (Đã cắt file gốc)"
+
         original_full_name = os.path.basename(audio_path)
         file_name_no_ext = os.path.splitext(original_full_name)[0]
         output_filename = os.path.join(FOLDER_SUNO_PREP, f"{file_name_no_ext}.wav")
 
-        audio = AudioSegment.from_file(audio_path)
         extract_ms = int(extract_sec * 1000)
         
         if extract_ms >= len(audio):
-            return None, f"❌ Lỗi: Thời gian cắt lớn hơn độ dài file."
+            return None, f"❌ Lỗi: Thời gian cắt {extract_sec}s lớn hơn độ dài file hiện tại ({len(audio)/1000:.1f}s)."
             
         extracted = audio[-extract_ms:]
         silence_ms = len(audio) - extract_ms
@@ -61,9 +81,20 @@ def prepare_suno_file(audio_path, extract_sec):
         result_audio = silence_segment + extracted
         result_audio.export(output_filename, format="wav")
         
-        return output_filename, f"✅ Thành công! File sẵn sàng cho Suno tại: {output_filename}"
+        return output_filename, f"✅ Thành công! File sẵn sàng cho Suno tại: {output_filename}{status_trim}"
     except Exception as e:
         return None, f"❌ Lỗi: {str(e)}"
+
+def update_trim_slider_max(audio_path):
+    """Cập nhật giá trị tối đa cho slider trim dựa trên độ dài audio"""
+    if not audio_path:
+        return gr.update(maximum=300, value=0)
+    try:
+        audio = AudioSegment.from_file(audio_path)
+        duration = round(len(audio) / 1000.0, 1)
+        return gr.update(maximum=duration, value=duration)
+    except:
+        return gr.update(maximum=300, value=0)
 
 def update_ui_on_file_upload(bottom_path, top_path):
     """Xử lý Auto-fill và Force Update Slider vào điểm giữa"""
@@ -180,7 +211,7 @@ def merge_audios(audio_top_path, audio_bottom_path, merge_time_sec, crossfade_se
 
 def reset_tab1():
     """Reset toàn bộ form Tab 1 về mặc định"""
-    return None, 5, None, ""
+    return None, 5, 0, None, ""
 
 def reset_tab2():
     """Reset toàn bộ form Tab 2 về mặc định"""
@@ -196,14 +227,17 @@ with gr.Blocks(title="Audio Workflow Manager", theme=gr.themes.Soft(), css=custo
             with gr.Column():
                 input_original = gr.Audio(type="filepath", label="File Audio Gốc")
                 extract_slider = gr.Slider(minimum=1, maximum=10, value=5, step=0.5, label="Độ dài đoạn lấy ở cuối (giây)")
+                trim_end_slider = gr.Slider(minimum=0, maximum=300, value=0, step=0.1, label="Thời gian kết thúc file gốc (Để mặc định nếu không muốn cắt)")
                 with gr.Row():
                     btn_prepare = gr.Button("Tạo file cho Suno", variant="primary")
                     btn_reset1 = gr.Button("🔄 Reset", variant="secondary")
             with gr.Column():
                 output_suno = gr.Audio(type="filepath", label="Kết quả (Sẽ lưu vào suno_ready)", interactive=False)
                 msg_prepare = gr.Textbox(label="Trạng thái")
-        btn_prepare.click(prepare_suno_file, inputs=[input_original, extract_slider], outputs=[output_suno, msg_prepare])
-        btn_reset1.click(reset_tab1, inputs=[], outputs=[input_original, extract_slider, output_suno, msg_prepare])
+        
+        input_original.change(update_trim_slider_max, inputs=[input_original], outputs=[trim_end_slider])
+        btn_prepare.click(prepare_suno_file, inputs=[input_original, extract_slider, trim_end_slider], outputs=[output_suno, msg_prepare])
+        btn_reset1.click(reset_tab1, inputs=[], outputs=[input_original, extract_slider, trim_end_slider, output_suno, msg_prepare])
 
     with gr.Tab("2. Nối File (Overlay)"):
         with gr.Row():

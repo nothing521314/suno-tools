@@ -66,6 +66,15 @@ EXCLUDES=(
     "*.egg-info/*"
     "dist/*"          # tránh đóng gói chính nó
     "*.log"
+    "downloads/*"
+    "final_merged/*"
+    "suno_ready/*"
+    "audio-data.json"
+    "output_audio/*"
+    "suno-id-manager/*"
+    "scratch/*"
+    "shazam_processor.py"
+    "suno_prompt_expert.md"
 )
 
 # Đọc thêm từ .gitignore
