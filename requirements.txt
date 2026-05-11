@@ -4,6 +4,8 @@ gradio
 shazamio
 requests
 playwright
+playwright-stealth
+httpx
 fastapi
 uvicorn
 pydantic
