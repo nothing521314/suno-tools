@@ -7,4 +7,4 @@ output_audio/
 dist/
 .DS_Store
 suno_session
-suno-id-manager/original_manager_data/results.json
+suno-id-manager/original_manager/results.json
