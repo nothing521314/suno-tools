@@ -3,6 +3,12 @@ import os
 import json
 import re
 import yt_dlp
+from dotenv import load_dotenv
+
+# Load biến môi trường từ file .env
+load_dotenv()
+import acrcloud_processor  # Tầng fallback 1
+import audd_processor      # Tầng fallback 2
 from playwright.async_api import async_playwright
 from shazamio import Shazam
 
@@ -181,8 +187,19 @@ async def process_item(item, existing_ids, semaphore):
             file_path = await download_audio_playwright(source_url)
         
         if file_path and os.path.exists(file_path):
+            # Tầng 1: Shazam
             info = await identify_song(file_path)
             
+            # Tầng 2: ACRCloud Fallback
+            if not info:
+                print(f"  [{actual_id}] -> Shazam thất bại, đang thử fallback qua ACRCloud...")
+                info = acrcloud_processor.identify_song(file_path)
+            
+            # Tầng 3: AudD Fallback
+            if not info:
+                print(f"  [{actual_id}] -> ACRCloud thất bại, đang thử fallback qua AudD...")
+                info = audd_processor.identify_song(file_path)
+
             if info:
                 info['claim_id'] = actual_id
                 info['fake_name'] = fake_name 

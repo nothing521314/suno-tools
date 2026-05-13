@@ -8,3 +8,5 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+acrcloud
+python-dotenv
