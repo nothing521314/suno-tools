@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>GoLogin Profile Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1>GoLogin Profile Manager</h1>
+        <span class="status-badge" id="status-badge">
+          <span class="dot"></span>
+          <span id="running-count">0 running</span>
+        </span>
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search by name..." autocomplete="off">
+          <button id="btn-clear-search" class="btn-clear-search" title="Clear search">&times;</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Tag Filter -->
+        <div class="tag-filter">
+          <select id="tag-filter" class="tag-filter-select">
+            <option value="">All Tags</option>
+          </select>
+        </div>
+        <!-- Bulk Actions -->
+        <div class="bulk-actions hidden" id="bulk-actions">
+          <span class="selected-count" id="selected-count">0 selected</span>
+          <button id="btn-bulk-run" class="btn btn-success" title="Run Selected">
+            ▶ Run
+          </button>
+          <button id="btn-bulk-stop" class="btn btn-warning" title="Stop Selected">
+            ⏹ Stop
+          </button>
+          <button id="btn-bulk-delete" class="btn btn-danger" title="Delete Selected">
+            🗑 Delete
+          </button>
+          <button id="btn-clear-selection" class="btn btn-secondary" title="Clear Selection">
+            ✕ Clear
+          </button>
+        </div>
+        <button id="btn-refresh" class="btn btn-secondary" title="Refresh">
+          &#x21bb; Refresh
+        </button>
+        <button id="btn-bulk-create" class="btn btn-secondary" title="Bulk Create Profiles">
+          ++ Bulk Create
+        </button>
+        <button id="btn-create-profile" class="btn btn-primary">
+          + Create Profile
+        </button>
+        <button id="btn-settings" class="btn btn-secondary" title="Settings">
+          ⚙ Settings
+        </button>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+      <button class="tab-btn active" data-tab="profiles">Profiles</button>
+      <button class="tab-btn" data-tab="scripts">Scripts</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Profiles Tab -->
+      <div class="tab-content active" id="tab-profiles">
+        <!-- Profile List -->
+        <div class="profile-list-container">
+          <div class="profile-list-header">
+            <span class="col-checkbox">
+              <input type="checkbox" id="select-all" title="Select All">
+            </span>
+            <span class="col-stt">STT</span>
+            <span class="col-status">Status</span>
+            <span class="col-name">Name</span>
+            <span class="col-tags">Tags</span>
+            <span class="col-id">Profile ID</span>
+            <span class="col-proxy">Proxy</span>
+            <span class="col-created">Created</span>
+            <span class="col-lastused">Last Used</span>
+            <span class="col-actions">Actions</span>
+          </div>
+          <div id="profile-list" class="profile-list">
+            <!-- Profile cards will be rendered here -->
+            <div class="loading-indicator" id="loading">
+              Loading profiles...
+            </div>
+            <div class="empty-state" id="empty-state" style="display: none;">
+              <p>No profiles yet</p>
+              <p>Click "Create Profile" to get started</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="log-panel">
+          <div class="log-header">
+            <span>Logs</span>
+            <div class="log-actions">
+              <button id="btn-clear-logs" class="btn btn-sm btn-secondary">Clear</button>
+              <button id="btn-toggle-logs" class="btn btn-sm btn-secondary">Hide</button>
+            </div>
+          </div>
+          <div id="log-container" class="log-container">
+            <div class="log-entry info">[System] Log panel initialized</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scripts Tab -->
+      <div class="tab-content" id="tab-scripts">
+        <div class="scripts-container">
+          <!-- Script List Panel -->
+          <div class="scripts-sidebar">
+            <div class="scripts-sidebar-header">
+              <h3>Scripts</h3>
+              <button id="btn-new-script" class="btn btn-primary btn-sm">+ New</button>
+            </div>
+            <div id="script-list" class="script-list">
+              <p class="no-scripts-message">No scripts yet</p>
+            </div>
+          </div>
+
+          <!-- Script Editor Panel -->
+          <div class="scripts-editor">
+            <div class="editor-header">
+              <div class="editor-info">
+                <input type="text" id="script-name-input" class="script-name-input" placeholder="Script Name" value="">
+                <input type="text" id="script-desc-input" class="script-desc-input" placeholder="Description (optional)" value="">
+              </div>
+              <div class="editor-actions">
+                <button id="btn-templates" class="btn btn-secondary btn-sm" title="Script Templates">Templates</button>
+                <button id="btn-block-editor" class="btn btn-secondary btn-sm" title="Visual Block Editor">Blocks</button>
+                <button id="btn-pick-selector" class="btn btn-info btn-sm" title="Pick element selector from browser">Pick Selector</button>
+                <button id="btn-record" class="btn btn-danger-outline btn-sm" title="Record Browser Actions">Record</button>
+                <span id="recording-indicator" class="recording-indicator hidden">
+                  <span class="recording-dot"></span> Recording... <span id="recording-event-count">0</span> events
+                  <button id="btn-stop-recording" class="btn btn-danger btn-sm">Stop</button>
+                </span>
+                <button id="btn-save-script" class="btn btn-primary btn-sm" disabled>Save</button>
+                <button id="btn-run-script" class="btn btn-success btn-sm" disabled>Run</button>
+                <button id="btn-delete-script" class="btn btn-danger btn-sm" disabled>Delete</button>
+              </div>
+            </div>
+            <textarea id="script-code-editor" class="script-code-editor" placeholder="// Write your automation script here.
+// Available: page, browser, logger, sleep(ms)
+//
+// Example:
+// await page.goto('https://example.com');
+// const title = await page.title();
+// logger.info('Title: ' + title);
+" spellcheck="false"></textarea>
+
+            <!-- Run Panel -->
+            <div class="run-panel">
+              <div class="run-panel-header">
+                <h4>Run Script</h4>
+                <div class="run-controls">
+                  <select id="run-profile-select" class="run-profile-select">
+                    <option value="">Select running profile...</option>
+                  </select>
+                  <button id="btn-run-on-profile" class="btn btn-success btn-sm" disabled>Run on Profile</button>
+                  <button id="btn-run-batch" class="btn btn-warning btn-sm" disabled>Run on All Running</button>
+                </div>
+              </div>
+
+              <!-- Execution Logs -->
+              <div class="execution-section">
+                <div class="execution-header">
+                  <h4>Executions</h4>
+                  <button id="btn-refresh-executions" class="btn btn-secondary btn-sm">Refresh</button>
+                </div>
+                <div id="execution-list" class="execution-list">
+                  <p class="no-executions-message">No executions yet</p>
+                </div>
+                <div id="execution-logs" class="execution-logs" style="display: none;">
+                  <div class="exec-logs-header">
+                    <span id="exec-logs-title">Logs</span>
+                    <button id="btn-close-exec-logs" class="btn btn-sm btn-secondary">Close</button>
+                  </div>
+                  <div id="exec-logs-container" class="exec-logs-container"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="tab-content" id="tab-settings">
+        <div class="settings-container">
+          <!-- Tag Management -->
+          <div class="settings-section">
+            <h3>Tag Management</h3>
+            <div class="setting-item">
+              <label>Add New Tag</label>
+              <div class="setting-input-group">
+                <input type="text" id="settings-new-tag" placeholder="Enter tag name">
+                <button id="btn-add-tag" class="btn btn-primary">Add Tag</button>
+              </div>
+            </div>
+            <div class="setting-item">
+              <label>Existing Tags</label>
+              <div id="settings-tag-list" class="tag-list">
+                <!-- Tags will be rendered here -->
+                <p class="no-tags-message">No tags created yet</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>GoLogin Profile Manager v1.0.0</span>
+      <span id="last-updated"></span>
+    </footer>
+
+    <!-- Create Profile Modal -->
+    <div id="modal-create" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Create New Profile</h2>
+          <button class="btn-close" id="btn-close-create">&times;</button>
+        </div>
+        <form id="form-create-profile">
+          <div class="form-group">
+            <label for="profile-name">Profile Name</label>
+            <input type="text" id="profile-name" placeholder="Enter name (optional - auto-generated if empty)">
+          </div>
+          <div class="form-group">
+            <label for="profile-platform">Platform</label>
+            <select id="profile-platform">
+              <option value="win" selected>Windows</option>
+              <option value="mac">macOS</option>
+              <option value="lin">Linux</option>
+            </select>
+          </div>
+
+          <div class="form-divider">
+            <span>Proxy Settings (Optional)</span>
+          </div>
+
+          <div class="form-group">
+            <label for="create-proxy-mode">Proxy Type</label>
+            <select id="create-proxy-mode">
+              <option value="none" selected>No Proxy</option>
+              <option value="pia">PIA Proxy (Auto)</option>
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+              <option value="socks4">SOCKS4</option>
+              <option value="socks5">SOCKS5</option>
+            </select>
+          </div>
+          <div id="create-pia-fields" style="display: none;">
+            <div class="form-group">
+              <label for="create-pia-country">Country</label>
+              <select id="create-pia-country">
+                <option value="">Select Country</option>
+              </select>
+            </div>
+          </div>
+          <div id="create-proxy-fields" style="display: none;">
+            <div class="form-group">
+              <label for="create-proxy-string">Proxy (ip:port or ip:port:user:pass)</label>
+              <input type="text" id="create-proxy-string" placeholder="192.168.1.1:8080 or 192.168.1.1:8080:username:password">
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-create">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-create">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Proxy Config Modal -->
+    <div id="modal-proxy" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Configure Proxy</h2>
+          <button class="btn-close" id="btn-close-proxy">&times;</button>
+        </div>
+        <form id="form-proxy-config">
+          <input type="hidden" id="proxy-profile-id">
+          <div class="form-group">
+            <label for="proxy-mode">Proxy Type</label>
+            <select id="proxy-mode">
+              <option value="none">No Proxy</option>
+              <option value="pia">PIA Proxy (Auto)</option>
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+              <option value="socks4">SOCKS4</option>
+              <option value="socks5">SOCKS5</option>
+            </select>
+          </div>
+          <div id="pia-fields" style="display: none;">
+            <div class="form-group">
+              <label for="pia-country">Country</label>
+              <select id="pia-country">
+                <option value="">Select Country</option>
+              </select>
+            </div>
+          </div>
+          <div id="proxy-fields">
+            <div class="form-group">
+              <label for="proxy-string">Proxy (ip:port or ip:port:user:pass)</label>
+              <input type="text" id="proxy-string" placeholder="192.168.1.1:8080 or 192.168.1.1:8080:username:password">
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-proxy">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Proxy</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tags Modal -->
+    <div id="modal-tags" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Edit Tags</h2>
+          <button class="btn-close" id="btn-close-tags">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="tags-profile-id">
+
+          <!-- Current Tags -->
+          <div class="form-group">
+            <label>Current Tags</label>
+            <div id="current-tags-list" class="tags-list">
+              <!-- Tags will be rendered here -->
+            </div>
+          </div>
+
+          <!-- Add Tag -->
+          <div class="form-group">
+            <label>Add Tag</label>
+            <div class="tag-add-row">
+              <select id="tag-select-existing">
+                <option value="">-- Select existing tag --</option>
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-selected-tag">Add</button>
+            </div>
+            <div class="tag-add-row" style="margin-top: 8px;">
+              <input type="text" id="tag-new-name" placeholder="Or enter new tag name">
+              <button type="button" class="btn btn-success btn-sm" id="btn-add-new-tag">Create & Add</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-tags">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Create Modal -->
+    <div id="modal-bulk-create" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+          <h2>Bulk Create Profiles</h2>
+          <button class="btn-close" id="btn-close-bulk-create">&times;</button>
+        </div>
+        <form id="form-bulk-create">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="bulk-profile-count">Number of Profiles</label>
+              <input type="number" id="bulk-profile-count" min="1" max="100" value="1" required>
+            </div>
+            <div class="form-group">
+              <label for="bulk-profile-platform">Platform</label>
+              <select id="bulk-profile-platform">
+                <option value="win" selected>Windows</option>
+                <option value="mac">macOS</option>
+                <option value="lin">Linux</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bulk-proxy-mode">Proxy Type</label>
+              <select id="bulk-proxy-mode">
+                <option value="none" selected>No Proxy</option>
+                <option value="pia">PIA Proxy (Auto)</option>
+                <option value="http">HTTP</option>
+                <option value="https">HTTPS</option>
+                <option value="socks4">SOCKS4</option>
+                <option value="socks5">SOCKS5</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="bulk-name-list">Profile Names (one per line, optional)</label>
+            <textarea id="bulk-name-list" rows="4" placeholder="Profile_1
+Profile_2
+Profile_3
+(Leave empty for auto-generated names)"></textarea>
+            <div class="form-hint">
+              <span id="bulk-name-count">0</span> names entered.
+              If fewer names than profiles, remaining profiles will have auto-generated names.
+            </div>
+          </div>
+
+          <div id="bulk-proxy-fields" style="display: none;">
+            <div class="form-group">
+              <label for="bulk-proxy-list">Proxy List (one per line: ip:port or ip:port:user:pass)</label>
+              <textarea id="bulk-proxy-list" rows="6" placeholder="192.168.1.1:8080
+192.168.1.2:8080:user:pass
+192.168.1.3:3128"></textarea>
+              <div class="form-hint">
+                <span id="bulk-proxy-count">0</span> proxies entered.
+                Profiles will be created with proxies in order. If fewer proxies than profiles, remaining profiles will have no proxy.
+              </div>
+            </div>
+          </div>
+
+          <div id="bulk-progress" class="bulk-progress hidden">
+            <div class="progress-bar">
+              <div class="progress-fill" id="bulk-progress-fill"></div>
+            </div>
+            <div class="progress-text" id="bulk-progress-text">Creating profiles...</div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="btn-cancel-bulk-create">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-bulk-create">Create Profiles</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Template Library Modal -->
+    <div id="modal-templates" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-wide">
+        <div class="modal-header">
+          <h2>Script Templates</h2>
+          <button class="btn-close" id="btn-close-templates">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="template-filter">
+            <button class="template-filter-btn active" data-category="all">All</button>
+            <button class="template-filter-btn" data-category="scraping">Scraping</button>
+            <button class="template-filter-btn" data-category="automation">Automation</button>
+            <button class="template-filter-btn" data-category="utility">Utility</button>
+          </div>
+          <div id="template-grid" class="template-grid"></div>
+          <div id="template-params-form" class="template-params hidden">
+            <h3 id="template-params-title"></h3>
+            <div id="template-params-fields"></div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="btn-template-back">Back</button>
+              <button type="button" class="btn btn-primary" id="btn-template-apply">Use Template</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block Editor Modal -->
+    <div id="modal-block-editor" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-extra-wide">
+        <div class="modal-header">
+          <h2>Visual Block Editor</h2>
+          <button class="btn-close" id="btn-close-block-editor">&times;</button>
+        </div>
+        <div class="modal-body block-editor-layout">
+          <div class="block-palette">
+            <h4>Blocks</h4>
+            <div id="block-palette-list"></div>
+          </div>
+          <div class="block-canvas-wrapper">
+            <h4>Script Steps <span id="block-count" class="text-muted">(0 blocks)</span></h4>
+            <div id="block-canvas" class="block-canvas">
+              <p class="block-canvas-empty">Click a block on the left to add it here</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-block-editor">Cancel</button>
+          <button type="button" class="btn btn-danger btn-sm" id="btn-clear-blocks">Clear All</button>
+          <button type="button" class="btn btn-primary" id="btn-generate-block-code">Generate Code</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
