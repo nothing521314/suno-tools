@@ -16,7 +16,8 @@ import {
   Info,
   CheckCircle2,
   PanelLeftOpen,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 
 interface SongResult {
@@ -172,6 +173,32 @@ export default function Home() {
       });
     } else {
       toast.error("Lỗi khi copy");
+    }
+  };
+
+  const deleteResult = async (claimId: string) => {
+    if (!confirm("Xóa kết quả này?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/results/${claimId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Đã xóa kết quả");
+        fetchData();
+      }
+    } catch (err) {
+      toast.error("Lỗi khi xóa kết quả");
+    }
+  };
+
+  const refreshResult = async (claimId: string) => {
+    if (!confirm("Xử lý lại bài hát này? (Sẽ chuyển về hàng chờ)")) return;
+    try {
+      const res = await fetch(`${API_BASE}/results/${claimId}/refresh`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Đã chuyển về hàng chờ");
+        fetchData();
+      }
+    } catch (err) {
+      toast.error("Lỗi khi xử lý lại");
     }
   };
 
@@ -403,7 +430,23 @@ export default function Home() {
                 </div>
 
                 <div className="mt-5 flex justify-between items-center border-t border-slate-700/40 pt-5">
-                  <span className="text-[10px] font-mono text-slate-500 bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-700/50">ID: {item.claim_id}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-700/50">ID: {item.claim_id}</span>
+                    <button
+                      onClick={() => refreshResult(item.claim_id)}
+                      className="p-1.5 text-slate-500 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition-all"
+                      title="Xử lý lại"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteResult(item.claim_id)}
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                      title="Xóa kết quả"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <a
                     href={item.tiktok_url}
                     target="_blank"

@@ -41,6 +41,57 @@ async def get_results():
             return []
     return []
 
+@app.delete("/api/results/{claim_id}")
+async def delete_result(claim_id: str):
+    if not os.path.exists(RESULTS_FILE):
+        return {"status": "error", "message": "Results file not found"}
+    
+    try:
+        with open(RESULTS_FILE, "r", encoding="utf-8") as f:
+            results = json.load(f)
+        
+        new_results = [r for r in results if str(r.get('claim_id')) != claim_id]
+        
+        with open(RESULTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(new_results, f, ensure_ascii=False, indent=4)
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/results/{claim_id}/refresh")
+async def refresh_result(claim_id: str):
+    if not os.path.exists(RESULTS_FILE):
+        raise HTTPException(status_code=404, detail="Results file not found")
+    
+    try:
+        with open(RESULTS_FILE, "r", encoding="utf-8") as f:
+            results = json.load(f)
+        
+        target_item = None
+        for r in results:
+            if str(r.get('claim_id')) == claim_id:
+                target_item = r
+                break
+        
+        if not target_item:
+            raise HTTPException(status_code=404, detail="Item not found in results")
+            
+        fake_name = target_item.get('fake_name', 'Không có')
+        source_url = target_item.get('source_url', claim_id)
+        
+        with open(QUEUE_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{fake_name}\t{source_url}\n")
+            
+        new_results = [r for r in results if str(r.get('claim_id')) != claim_id]
+        with open(RESULTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(new_results, f, ensure_ascii=False, indent=4)
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/queue")
 async def get_queue():
     queue = []
