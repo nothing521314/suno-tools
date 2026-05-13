@@ -117,6 +117,12 @@ async def download_audio_ytdlp(url, output_folder):
         "noprogress": True,
     }
     
+    # Chống bị chặn/yêu cầu đăng nhập Facebook: Sử dụng cookies nếu có file
+    if os.path.exists("facebook_cookies.txt"):
+        ydl_opts["cookiefile"] = "facebook_cookies.txt"
+    elif os.path.exists("cookies.txt"):
+        ydl_opts["cookiefile"] = "cookies.txt"
+    
     def run_yt_dlp():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:

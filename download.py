@@ -103,6 +103,12 @@ def download_with_ytdlp(url, output_folder):
         "outtmpl": f"{output_folder}/%(id)s.%(ext)s",
         "quiet": False,
     }
+
+    # Chống bị chặn/yêu cầu đăng nhập Facebook: Sử dụng cookies nếu có file
+    if os.path.exists("facebook_cookies.txt"):
+        ydl_opts["cookiefile"] = "facebook_cookies.txt"
+    elif os.path.exists("cookies.txt"):
+        ydl_opts["cookiefile"] = "cookies.txt"
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             ydl.download([url])

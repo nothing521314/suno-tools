@@ -10,3 +10,5 @@ suno_session
 suno-id-manager/original_manager/results.json
 .env
 suno-id-manager/.env
+cookies.txt
+facebook_cookies.txt

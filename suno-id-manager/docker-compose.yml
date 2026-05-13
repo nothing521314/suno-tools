@@ -6,4 +6,5 @@ services:
     volumes:
       - ./original_manager:/app/original_manager
       - ./queue.txt:/app/queue.txt
+      - ./cookies.txt:/app/cookies.txt
     restart: unless-stopped
