@@ -411,7 +411,37 @@ async def submit_song(page, audio_id, item, audio_data):
             .filter(has_text="Upload")
             .first
         )
-        await row.locator('button[aria-label*="Remix/Edit"]').first.click()
+        # New UI: Click 'More options' (...) button
+        dots_btn = row.locator('button[aria-label*="More"], button:has(svg)').last
+        await dots_btn.click()
+
+        # New UI: Click 'Edit' menu item
+        edit_item = (
+            page.locator(".context-menu-item button")
+            .filter(has_text=re.compile(r"^Edit$", re.I))
+            .filter(visible=True)
+            .first
+        )
+        if await edit_item.count() > 0:
+            await edit_item.click()
+
+            # Click 'Extend' in the sub-menu
+            extend_item = (
+                page.locator('button[aria-label="Extend"]').filter(visible=True).first
+            )
+            if await extend_item.count() > 0:
+                await extend_item.click()
+            else:
+                extend_item_alt = (
+                    page.locator("button")
+                    .filter(has_text=re.compile(r"^Extend$", re.I))
+                    .filter(visible=True)
+                    .first
+                )
+                if await extend_item_alt.count() > 0:
+                    await extend_item_alt.click()
+
+    # Fallback/Confirmation: check if we are in Extend mode by looking for the Extend button in workspace
     extend_btn = page.locator('button:has-text("Extend")').filter(visible=True).first
     if await extend_btn.count() > 0:
         await extend_btn.click()
@@ -455,6 +485,9 @@ async def submit_song(page, audio_id, item, audio_data):
         .filter(visible=True)
         .last
     )
+    # input(
+    #     f"\n[DEBUG] Form đã điền cho ID {audio_id}. Kiểm tra trên trình duyệt rồi nhấn Enter để SUBMIT..."
+    # )
     await create_btn.click(force=True)
     asyncio.create_task(wait_for_captcha(page, timeout_sec=10))
     print("   - Đang đợi Suno xác nhận yêu cầu...")
@@ -619,12 +652,25 @@ def auto_process_audio(audio_id, suno_path, audio_data):
                 break
         merge_time_ms = start_ms
         crossfade_ms = 1000
+        # Chuẩn hóa Peak cho cả 2 đoạn về cùng mức -0.1dB để waveform đồng nhất
+        audio_t = effects.normalize(audio_t, headroom=0.1)
+        audio_b = effects.normalize(audio_b, headroom=0.1)
+        
         top_faded = audio_t.fade_out(crossfade_ms)
         bottom_active = audio_b[merge_time_ms:]
-        if audio_t.dBFS != float("-inf") and bottom_active.dBFS != float("-inf"):
-            gain_adjustment = audio_t.dBFS - bottom_active.dBFS
-            if abs(gain_adjustment) > 2:
-                bottom_active = bottom_active + gain_adjustment
+        
+        # Cân bằng độ lớn (Loudness) dựa trên vùng lân cận điểm nối
+        # (Lấy 2s cuối của bản gốc và 2s đầu của bản mới)
+        check_window = 2000
+        top_w = audio_t[max(0, len(audio_t) - check_window):]
+        bot_w = bottom_active[:check_window]
+        
+        if top_w.dBFS != float("-inf") and bot_w.dBFS != float("-inf"):
+            gain_adj = top_w.dBFS - bot_w.dBFS
+            # Giới hạn điều chỉnh để tránh méo tiếng
+            gain_adj = max(-5, min(5, gain_adj))
+            bottom_active = bottom_active + gain_adj
+
         bottom_final = AudioSegment.silent(
             duration=merge_time_ms
         ) + bottom_active.fade_in(crossfade_ms)
@@ -656,6 +702,13 @@ async def main():
         for pg in [page_s, page_m]:
             await Stealth().apply_stealth_async(pg)
             await pg.goto("https://suno.com/create")
+
+        print("\n" + "=" * 50)
+        print("🛑 PAUSE: Trình duyệt đã mở Suno.")
+        print("Hãy kiểm tra tài khoản, workspace và đảm bảo mọi thứ đã sẵn sàng.")
+        input("Sau khi kiểm tra xong, nhấn Enter để tiếp tục chạy tự động...")
+        print("=" * 50 + "\n")
+
         await page_s.wait_for_selector('button:has-text("Create")', timeout=0)
         await ensure_advanced_mode(page_s)
         todo = load_todo_ids()

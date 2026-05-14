@@ -13,3 +13,4 @@ suno-id-manager/.env
 cookies.txt
 facebook_cookies.txt
 gologin-profile-manager/data
+node_modules

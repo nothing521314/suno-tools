@@ -1,5 +1,5 @@
 import gradio as gr
-from pydub import AudioSegment
+from pydub import AudioSegment, effects
 import os
 import json
 
@@ -79,6 +79,8 @@ def prepare_suno_file(audio_path, extract_sec, trim_end_sec):
         silence_segment = AudioSegment.silent(duration=silence_ms)
         
         result_audio = silence_segment + extracted
+        # Normalize result for Suno upload
+        result_audio = effects.normalize(result_audio, headroom=0.1)
         result_audio.export(output_filename, format="wav")
         
         return output_filename, f"✅ Thành công! File sẵn sàng cho Suno tại: {output_filename}{status_trim}"
@@ -182,6 +184,10 @@ def merge_audios(audio_top_path, audio_bottom_path, merge_time_sec, crossfade_se
         audio_top = AudioSegment.from_file(audio_top_path)
         audio_bottom = AudioSegment.from_file(audio_bottom_path)
         
+        # Normalize both tracks to -0.1 dB for consistency before matching
+        audio_top = effects.normalize(audio_top, headroom=0.1)
+        audio_bottom = effects.normalize(audio_bottom, headroom=0.1)
+        
         merge_time_ms = int(merge_time_sec * 1000)
         crossfade_ms = int(crossfade_sec * 1000)
         
@@ -189,12 +195,25 @@ def merge_audios(audio_top_path, audio_bottom_path, merge_time_sec, crossfade_se
         top_faded = top_cut.fade_out(crossfade_ms)
         
         bottom_active = audio_bottom[merge_time_ms:]
-        top_loudness = audio_top[:merge_time_ms].dBFS
-        bottom_loudness = bottom_active.dBFS
+        
+        # Bước 1: Chuẩn hóa âm lượng cao nhất (Peak) của cả 2 file về cùng mức -0.1dB
+        # Điều này giúp Waveform của 2 phần trông cân bằng nhau về biên độ tối đa
+        audio_top = effects.normalize(audio_top, headroom=0.1)
+        bottom_active = effects.normalize(bottom_active, headroom=0.1)
+        
+        # Bước 2: Cân bằng cục bộ tại điểm nối để tránh hẫng âm lượng (vẫn dùng RMS vì tai nghe nhạy hơn với trung bình)
+        check_window_ms = 2000
+        top_window = audio_top[max(0, merge_time_ms - check_window_ms):merge_time_ms]
+        bottom_window = bottom_active[:check_window_ms]
+        
+        top_loudness = top_window.dBFS
+        bottom_loudness = bottom_window.dBFS
         
         gain_adjustment = 0
         if top_loudness != float('-inf') and bottom_loudness != float('-inf'):
             gain_adjustment = top_loudness - bottom_loudness
+            # Giới hạn điều chỉnh để tránh thay đổi quá đột ngột
+            gain_adjustment = max(-5, min(5, gain_adjustment))
             bottom_active = bottom_active + gain_adjustment 
             
         bottom_active_faded = bottom_active.fade_in(crossfade_ms)
@@ -202,6 +221,9 @@ def merge_audios(audio_top_path, audio_bottom_path, merge_time_sec, crossfade_se
         bottom_final = absolute_silence + bottom_active_faded
         
         final_audio = bottom_final.overlay(top_faded)
+        
+        # Final normalization to ensure the merged track is at peak volume
+        final_audio = effects.normalize(final_audio, headroom=0.1)
         final_audio.export(output_filename, format="wav")
         
         mins, secs = divmod(len(final_audio) // 1000, 60)
