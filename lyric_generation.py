@@ -52,9 +52,9 @@ def process_bulk_metadata():
     else:
         db_data = []
 
-    existing_ids = {item["id"] for item in db_data}
+    db_dict = {item["id"]: item for item in db_data}
 
-    # 2. Quét các file audio chưa có metadata
+    # 2. Quét các file audio chưa có metadata hoặc cần cập nhật
     if not os.path.exists(DOWNLOADS_DIR):
         print(f"❌ Thư mục {DOWNLOADS_DIR} không tồn tại.")
         return
@@ -64,7 +64,17 @@ def process_bulk_metadata():
     for filename in all_files:
         # Extract ID from filename
         target_id = filename.split(".")[0].split("_")[0]
-        if target_id not in existing_ids:
+        
+        needs_processing = False
+        if target_id not in db_dict:
+            needs_processing = True
+        else:
+            lyrics = db_dict[target_id].get("lyrics", "")
+            # check lyrics is empty or less than 500 chars
+            if lyrics is None or len(lyrics) < 500:
+                needs_processing = True
+                
+        if needs_processing:
             to_process_files.append({"id": target_id, "file": filename})
 
     if not to_process_files:
@@ -108,19 +118,44 @@ def process_bulk_metadata():
         with open(RESPONSE_FILE, "r", encoding="utf-8") as f:
             responses = json.load(f)
         
-        current_ids = {item["id"] for item in db_data}
+        db_index_map = {item["id"]: idx for idx, item in enumerate(db_data)}
         new_ids_count = 0
+        updated_ids_count = 0
+        
         for entry in responses:
-            if entry["id"] not in current_ids:
-                db_data.append(entry)
-                current_ids.add(entry["id"])
+            entry_id = entry.get("id")
+            if not entry_id:
+                continue
+                
+            # Chuẩn hóa format: Nếu có key "metadata", lôi các trường bên trong ra ngoài
+            normalized_entry = {"id": entry_id}
+            
+            if "metadata" in entry and isinstance(entry["metadata"], dict):
+                meta = entry["metadata"]
+                normalized_entry["title"] = meta.get("title", "")
+                normalized_entry["lang"] = meta.get("lang", "")
+                normalized_entry["style"] = meta.get("style", "")
+                normalized_entry["lyrics"] = meta.get("lyrics", "")
+            else:
+                # Nếu đã là format phẳng
+                normalized_entry["title"] = entry.get("title", "")
+                normalized_entry["lang"] = entry.get("lang", "")
+                normalized_entry["style"] = entry.get("style", "")
+                normalized_entry["lyrics"] = entry.get("lyrics", "")
+
+            if entry_id in db_index_map:
+                db_data[db_index_map[entry_id]] = normalized_entry
+                updated_ids_count += 1
+            else:
+                db_data.append(normalized_entry)
+                db_index_map[entry_id] = len(db_data) - 1
                 new_ids_count += 1
         
         # Lưu database
         with open(JSON_DB_PATH, "w", encoding="utf-8") as f:
             json.dump(db_data, f, indent=2, ensure_ascii=False)
         
-        print(f"✨ Thành công! Đã thêm {new_ids_count} metadata mới vào {JSON_DB_PATH}")
+        print(f"✨ Thành công! Đã thêm {new_ids_count} và cập nhật {updated_ids_count} metadata vào {JSON_DB_PATH}")
         
         # 7. Dọn dẹp
         if os.path.exists(REQUEST_FILE):

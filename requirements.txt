@@ -10,3 +10,7 @@ fastapi
 uvicorn
 pydantic
 python-multipart
+
+numba==0.62.0
+openai-whisper
+numpy<2.0.0
